@@ -1,0 +1,153 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "util.h"
+
+
+EXEC SQL INCLUDE SQLCA;
+
+EXEC SQL BEGIN DECLARE SECTION;
+   char db[6] = "cs348";
+   char name[22];
+   short aid;
+   char url[42];
+   short year;
+   char pubid[10];
+   char title[70];
+   short volume;
+   short number;
+   char publisher[50];
+   short aorder;
+   char appearsin[10];
+   short startpage;
+   short endpage;
+EXEC SQL END DECLARE SECTION;
+
+
+
+int main(int argc, char *argv[]) {
+	EXEC SQL WHENEVER SQLERROR  GO TO error;
+	EXEC SQL CONNECT TO :db;
+	char *sentence;
+	size_t length = 1024;
+	sentence = (char *)malloc(length * sizeof(char));
+	if (sentence == NULL) { // check if malloc successfully
+		exit(1);
+	}
+	char *item;
+	while (getline(&sentence, &length, stdin)) {
+		if (feof(stdin)) break;
+		item = strtok(sentence, "("); 
+		if (strcmp(item, "author") == 0) {
+			aid = atoi(strtok(NULL, "#"));; 
+			strcpy(name, strtok(NULL, ")")); 
+            EXEC SQL DELETE 
+            FROM author 
+            WHERE aid=:aid;
+            EXEC SQL INSERT INTO author values (:aid, :name, NULL); 
+            //printf("Author update successfull!\n");
+		} else if (strcmp(item, "authorurl") == 0) {
+			aid = atoi(strtok(NULL, "#"));; 
+			strcpy(url, strtok(NULL, ")")); 
+            EXEC SQL UPDATE author 
+                     SET url=:url
+                     WHERE aid=:aid;
+            //printf("Url update successfull!\n");
+		} else if (strcmp(item, "proceedings") == 0) {
+			strcpy(pubid, strtok(NULL, "#"));
+			strcpy(title, strtok(NULL, "#"));
+			year = atoi(strtok(NULL, ")"));
+			EXEC SQL DELETE 
+            FROM proceedings 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO proceedings values (:pubid, :year); 
+            EXEC SQL DELETE 
+            FROM publication 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO publication values (:pubid, :title); 
+		} else if (strcmp(item, "journal") == 0) {
+			strcpy(pubid, strtok(NULL, "#"));
+			strcpy(title, strtok(NULL, "#"));
+			volume = atoi(strtok(NULL, "#"));
+			number = atoi(strtok(NULL, "#"));
+			year = atoi(strtok(NULL, ")"));
+			EXEC SQL DELETE 
+            FROM journal 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO journal values (:pubid, :volume, :number, :year);
+            EXEC SQL DELETE 
+            FROM publication 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO publication values (:pubid, :title); 
+		} else if (strcmp(item, "book") == 0) {
+			strcpy(pubid, strtok(NULL, "#"));
+			strcpy(title, strtok(NULL, "#"));
+			char *author_list = strtok(NULL, "#");
+			strcpy(publisher, strtok(NULL, "#"));
+			year = atoi(strtok(NULL, ")"));
+			EXEC SQL DELETE 
+            FROM book 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO book values (:pubid, :publisher, :year);
+            EXEC SQL DELETE 
+            FROM publication 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO publication values (:pubid, :title); 
+            //接下来是难点
+            EXEC SQL DELETE 
+            FROM wrote 
+            WHERE pubid=:pubid;
+            char *my;
+            aid = atoi(strtok(author_list, ";"));
+            for (aorder = 1; author_list != NULL; ++aorder) {
+            	EXEC SQL INSERT INTO wrote values (:aid, :pubid, :aorder);
+            	my = strtok(NULL,";");
+            	if (my == NULL) break;
+            	aid = atoi(my);
+            }
+		} else if (strcmp(item, "article") == 0) {
+			strcpy(pubid, strtok(NULL, "#"));
+			strcpy(title, strtok(NULL, "#"));
+			char *author_list = strtok(NULL, "#");
+			strcpy(appearsin, strtok(NULL, "#"));
+			startpage = atoi(strtok(NULL, "#"));
+			endpage = atoi(strtok(NULL, ")"));
+			EXEC SQL DELETE 
+            FROM article 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO article values (:pubid, :appearsin, :startpage, :endpage);
+            EXEC SQL DELETE 
+            FROM publication 
+            WHERE pubid=:pubid;
+            EXEC SQL INSERT INTO publication values (:pubid, :title); 
+            // delete wrote with pubid
+            EXEC SQL DELETE 
+            FROM wrote 
+            WHERE pubid=:pubid;
+            char *my;
+            aid = atoi(strtok(author_list, ";"));
+            for (aorder = 1; author_list != NULL; ++aorder) {
+            	EXEC SQL INSERT INTO wrote values (:aid, :pubid, :aorder);
+            	my = strtok(NULL,";");
+            	if (my == NULL) break;
+            	aid = atoi(my);
+            }
+		} else {
+			printf("Incorrect command!\n");
+			goto end;
+		}
+	}
+end:
+    free(sentence);
+	EXEC SQL COMMIT;
+	EXEC SQL CONNECT reset;
+    exit(0);
+error:
+    check_error("My error",&sqlca);
+    EXEC SQL WHENEVER SQLERROR CONTINUE;
+    EXEC SQL ROLLBACK;
+    EXEC SQL CONNECT reset;
+    exit(1);
+}
+               
+

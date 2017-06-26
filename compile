@@ -1,0 +1,11 @@
+db2 connect to cs348
+db2 prep bibauthorsummary.sqc bindfile
+db2 bind bibauthorsummary.bnd
+gcc -I/home/db2inst2/sqllib/include -c bibauthorsummary.c
+gcc -I/home/db2inst2/sqllib/include -c util.c
+gcc -I/home/db2inst2/sqllib/include -o bibauthorsummary bibauthorsummary.o util.o -L/home/db2inst2/sqllib/lib -ldb2
+db2 prep bibmaint.sqc bindfile
+db2 bind bibmaint.bnd
+gcc -I/home/db2inst2/sqllib/include -c bibmaint.c
+gcc -I/home/db2inst2/sqllib/include -c util.c
+gcc -I/home/db2inst2/sqllib/include -o bibmaint bibmaint.o util.o -L/home/db2inst2/sqllib/lib -ldb2
