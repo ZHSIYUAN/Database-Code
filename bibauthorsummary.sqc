@@ -1,0 +1,67 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include "util.h"
+#include <string.h>
+
+EXEC SQL INCLUDE SQLCA;
+
+int main(int argc, char *argv[]) {
+   EXEC SQL BEGIN DECLARE SECTION;
+      char db[6] = "cs348";
+      char space[2] = " "; 
+      char name[22], pubid[10];
+      short aid; 
+      short coa[1024] = {0};
+      short now;
+      short max = 0;
+   EXEC SQL END DECLARE SECTION;
+   //printf("Sample C program: CONNECT\n" );
+   EXEC SQL WHENEVER SQLERROR  GO TO error;
+   EXEC SQL CONNECT TO :db;
+   //printf("Connected to DB2\n");
+   // do my stuff here
+   strcpy(name, argv[1]);
+   for (short i = 2; i < argc; ++i) { 
+      strcat(name, space);
+      strcat(name, argv[i]);
+   }
+   //printf("argc=%i\n", argc);
+   EXEC SQL SELECT a.aid INTO :aid
+            FROM author a
+            WHERE a.name=:name;
+   EXEC SQL DECLARE mypubid CURSOR FOR
+             SELECT w.pubid
+             FROM author a, wrote w
+             WHERE a.name=:name
+               AND a.aid=w.aid;
+   EXEC SQL OPEN mypubid;
+   EXEC SQL WHENEVER NOT FOUND GO TO end;
+   for (;;) {
+     EXEC SQL FETCH mypubid INTO :pubid;
+     EXEC SQL WHENEVER NOT FOUND GO TO end;
+     EXEC SQL SELECT count(w.aid) INTO :now
+              FROM wrote w
+              WHERE w.pubid=:pubid;
+     if (now > max) max = now;
+     ++coa[now-1];
+   };
+   end:
+   printf("%s (aid=%hi)\n", name, aid); //symbol for short
+   for (short i = 0; i <= max; ++i) {
+    if (coa[i] != 0) {
+     printf("(%hi:%hi)\n", coa[i], i); //symbol for short
+    };
+   };
+   EXEC SQL CLOSE mypubid;
+   // my stuff end here
+   EXEC SQL COMMIT;
+   EXEC SQL CONNECT reset;
+   exit(0);
+   error:
+   check_error("My error",&sqlca);
+   EXEC SQL WHENEVER SQLERROR CONTINUE;
+   EXEC SQL ROLLBACK;
+   EXEC SQL CONNECT reset;
+   exit(1);
+}
+
